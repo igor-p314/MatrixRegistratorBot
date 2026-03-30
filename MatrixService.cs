@@ -238,8 +238,9 @@ internal partial class MatrixService
             case System.Net.HttpStatusCode.OK:
             case System.Net.HttpStatusCode.NoContent:
                 Log.Information("Пароль успешно установлен для пользователя {userId}", userId);
-
-                await SendToRoomAsync(roomKey, new FormattedMessage($"Пользователь <a href=\"https://matrix.to/#/@{userName}:{Environment.GetEnvironmentVariable("MATRIX_HOMESERVER_URL")}\">@testuserapi:nemarxiki.ru</a> успешно создан. Логин:", $"Пользователь {userName} успешно создан. Логин:"), cancellationToken).ConfigureAwait(false);
+                
+                var newUserId = $"@{userName}:{Environment.GetEnvironmentVariable("MATRIX_HOMESERVER_URL")}";
+                await SendToRoomAsync(roomKey, new FormattedMessage($"Пользователь <a href=\"https://matrix.to/#/@{newUserId}\">{newUserId}</a> успешно создан. Логин:", $"Пользователь {userName} успешно создан. Логин:"), cancellationToken).ConfigureAwait(false);
                 await SendToRoomAsync(roomKey, new Message(userName), cancellationToken).ConfigureAwait(false);
                 await SendToRoomAsync(roomKey, new Message("Пароль:"), cancellationToken).ConfigureAwait(false);
                 await SendToRoomAsync(roomKey, new Message(password), cancellationToken).ConfigureAwait(false);

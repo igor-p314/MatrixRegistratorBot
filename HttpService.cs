@@ -123,8 +123,7 @@ internal class HttpService
             },
             cancellationToken).ConfigureAwait(false);
 
-        _ = Task.Run(() => HealthService.HeartBeatAsync(cancellationToken));
-
+        await HealthService.HeartBeatAsync(cancellationToken).ConfigureAwait(false);
         return response;
     }
 

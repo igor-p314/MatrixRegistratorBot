@@ -7,8 +7,8 @@ namespace MatrixRegistratorBot;
 
 internal static class HealthService
 {
-    internal static async ValueTask HeartBeatAsync(CancellationToken cancellationToken)
+    internal static Task HeartBeatAsync(CancellationToken cancellationToken)
     {
-        await File.WriteAllTextAsync("/tmp/heartbeat", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), cancellationToken).ConfigureAwait(false);
+        return File.WriteAllTextAsync("/tmp/heartbeat", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), cancellationToken);
     }
 }

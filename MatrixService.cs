@@ -12,12 +12,21 @@ using System.Threading.Tasks;
 
 namespace MatrixRegistratorBot;
 
+/// <summary>
+/// Сервис работы с Matrix протоколом.
+/// </summary>
 internal partial class MatrixService
 {
     internal static readonly string[] RegistrationCommands = ["!reg", "!r", "!register", "!registr", "!rgstr"];
 
-    private static readonly Regex userNameRules = CreateUserNameRegex();
-    private readonly int _maxMessageAge = 14400000; // 4 hours in milliseconds
+    private const int PasswordLength = 16;
+    private const int MaxAllowedUsersInRoom = 2;
+    private static readonly Regex UserNameRules = CreateUserNameRegex();
+
+    private readonly int _maxMessageAge = 14_400_000; // 4 hours in milliseconds
+    private readonly string _registrationRoomKey = Environment.GetEnvironmentVariable("MATRIX_REGISTRATION_ROOM_KEY")
+        ?? throw new InvalidOperationException("Не задана переменная среды MATRIX_REGISTRATION_ROOM_KEY");
+
     private readonly TokenService _tokenService = new();
     private readonly TimeProvider _timeProvider;
     private readonly HttpService _httpService = new();
@@ -38,6 +47,36 @@ internal partial class MatrixService
         var authorizationService = await _httpService.AuthorizeAsync("/_matrix/client/v3/login", cancellationToken).ConfigureAwait(false);
         await ConnectToServerAsync(authorizationService, cancellationToken).ConfigureAwait(false);
     }
+
+    private static string? ParseUsername(string message)
+    {
+        string? result = null;
+#pragma warning disable MEN010 // Формат подразумевает строку из двух частей. третья уже будет лишней
+        var parts = message.Trim().Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 2
+            && RegistrationCommands.Contains(parts[0])
+            && UserNameRules.IsMatch(parts[1]))
+        {
+            result = parts[1].Trim();
+        }
+#pragma warning restore MEN010
+
+        return result;
+    }
+
+    private static string CreatePassword()
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+=<>?";
+        var random = new Random();
+        var passwordChars = Enumerable.Range(0, PasswordLength)
+            .Select(_ => chars[random.Next(chars.Length)])
+            .ToArray();
+        return new string(passwordChars);
+    }
+
+    [GeneratedRegex(@"[a-z0-9._-]{3,64}")]
+    private static partial Regex CreateUserNameRegex();
 
     private async ValueTask ConnectToServerAsync(AuthorizationService authorizationService, CancellationToken cancellationToken)
     {
@@ -95,17 +134,17 @@ internal partial class MatrixService
                                 && !string.IsNullOrEmpty(e.Content.Body)
                                 && !currentUserId.Equals(e.Sender, StringComparison.OrdinalIgnoreCase)
                                 && _timeProvider.GetUtcNow().ToUnixTimeMilliseconds() - e.OriginServerTs < _maxMessageAge)
-                    .Select(e => (RoomKey: r.Key, Text: e.Content.Body!)));
+                    .Select(e => (roomKey: r.Key, text: e.Content.Body!, sender: e.Sender)));
 
-                foreach (var (RoomKey, Text) in messages)
+                foreach (var (roomKey, text, sender) in messages)
                 {
-                    if (RegistrationCommands.Any(Text.StartsWith))
+                    if (RegistrationCommands.Any(text.StartsWith))
                     {
-                        await ProcessRegistrationCommandAsync(RoomKey, Text, cancellationToken).ConfigureAwait(false);
+                        await ProcessRegistrationCommandAsync(roomKey, text, sender, cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
-                        await RespondWrongCommandAsync(RoomKey, cancellationToken).ConfigureAwait(false);
+                        await RespondWrongCommandAsync(roomKey, cancellationToken).ConfigureAwait(false);
                     }
                 }
 
@@ -132,14 +171,18 @@ internal partial class MatrixService
             var membersCount = invite.Value.InviteState.Events.Count(e => e.Type == "m.room.member");
             var roomName = invite.Value.InviteState.Events.FirstOrDefault(e => e.Type == "m.room.name")?.Content?.Name ?? "Unknown";
             var isEncrypted = invite.Value.InviteState.Events.Any(e => e.Type == "m.room.encryption");
-            if (membersCount == 2 && !isEncrypted) // only direct
+            if (membersCount == MaxAllowedUsersInRoom && !isEncrypted) // only direct
             {
                 Task.Run(() => JoinDirectRoomAsync(invite.Key, cancellationToken));
             }
             else
             {
                 Task.Run(() => LeaveRoomAsync(invite.Key, cancellationToken));
-                Log.Information("Отклонено приглашение в комнату '{roomName}'. Количество участников: {membersCount}, IsEncrypted = {isEncrypted}.", roomName, membersCount, isEncrypted);
+                Log.Information(
+                    "Отклонено приглашение в комнату '{roomName}'. Количество участников: {membersCount}, IsEncrypted = {isEncrypted}.",
+                    roomName,
+                    membersCount,
+                    isEncrypted);
             }
         }
 
@@ -175,12 +218,12 @@ internal partial class MatrixService
         Log.Information("Ответ отправлен в комнату {roomKey}: '{message}' {statusCode}", roomKey, message, response.StatusCode);
     }
 
-    private async ValueTask ProcessRegistrationCommandAsync(string roomKey, string message, CancellationToken cancellationToken)
+    private async ValueTask ProcessRegistrationCommandAsync(string roomKey, string message, string sender, CancellationToken cancellationToken)
     {
         var userName = ParseUsername(message);
         if (!string.IsNullOrEmpty(userName))
         {
-            await ProcessRegistrationAsync(roomKey, userName, cancellationToken).ConfigureAwait(false);
+            await ProcessRegistrationAsync(roomKey, userName, sender, cancellationToken).ConfigureAwait(false);
         }
         else
         {
@@ -188,7 +231,7 @@ internal partial class MatrixService
         }
     }
 
-    private async ValueTask ProcessRegistrationAsync(string roomKey, string userNameToRegister, CancellationToken cancellationToken)
+    private async ValueTask ProcessRegistrationAsync(string roomKey, string userNameToRegister, string sender, CancellationToken cancellationToken)
     {
         var token = await _httpService.AuthorizeAdminAsync(cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrEmpty(token))
@@ -199,10 +242,12 @@ internal partial class MatrixService
             if (!string.IsNullOrEmpty(userId))
             {
                 var password = CreatePassword();
-                await SetPasswordAsync(roomKey, userNameToRegister, userId, password, token, cancellationToken).ConfigureAwait(false);
+                if (await SetPasswordAsync(roomKey, userId, password, token, cancellationToken).ConfigureAwait(false))
+                {
+                    await SendSuccessToRoomsAsync(roomKey, userNameToRegister, password, sender, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
-
     }
 
     private async ValueTask<string?> CreateUserAsync(string roomKey, string userNameToRegister, string token, CancellationToken cancellationToken)
@@ -218,7 +263,8 @@ internal partial class MatrixService
                 break;
 
             case System.Net.HttpStatusCode.Conflict:
-                await SendToRoomAsync(roomKey, new Message($"Логин '{createResult.UserName}' уже занят. Придумайте другой."), cancellationToken).ConfigureAwait(false);
+                await SendToRoomAsync(roomKey, new Message($"Логин '{createResult.UserName}' уже занят. Придумайте другой."), cancellationToken)
+                        .ConfigureAwait(false);
                 break;
 
             default:
@@ -229,22 +275,24 @@ internal partial class MatrixService
         return result;
     }
 
-    private async ValueTask SetPasswordAsync(string roomKey, string userName, string userId, string password, string token, CancellationToken cancellationToken)
+    private async ValueTask<bool> SetPasswordAsync(
+        string roomKey,
+        string userId,
+        string password,
+        string token,
+        CancellationToken cancellationToken)
     {
-        var result = await _httpService.SetUserPasswordAsync(userId, password, token, cancellationToken).ConfigureAwait(false);
+        var result = false;
+        var passwordSetResult = await _httpService.SetUserPasswordAsync(userId, password, token, cancellationToken).ConfigureAwait(false);
 
-        switch (result.StatusCode)
+        switch (passwordSetResult.StatusCode)
         {
             case System.Net.HttpStatusCode.OK:
             case System.Net.HttpStatusCode.NoContent:
                 Log.Information("Пароль успешно установлен для пользователя {userId}", userId);
-                
-                var newUserId = $"@{userName}:{Environment.GetEnvironmentVariable("MATRIX_HOMESERVER_URL")}";
-                await SendToRoomAsync(roomKey, new FormattedMessage($"Пользователь <a href=\"https://matrix.to/#/@{newUserId}\">{newUserId}</a> успешно создан. Логин:", $"Пользователь {userName} успешно создан. Логин:"), cancellationToken).ConfigureAwait(false);
-                await SendToRoomAsync(roomKey, new Message(userName), cancellationToken).ConfigureAwait(false);
-                await SendToRoomAsync(roomKey, new Message("Пароль:"), cancellationToken).ConfigureAwait(false);
-                await SendToRoomAsync(roomKey, new Message(password), cancellationToken).ConfigureAwait(false);
+                result = true;
 
+                // в чат пишем в другом месте
                 break;
 
             case System.Net.HttpStatusCode.BadRequest:
@@ -254,47 +302,48 @@ internal partial class MatrixService
             default:
                 break;
         }
+
+        return result;
     }
 
     private async ValueTask SetReadMarkerAsync(string roomKey, string eventId, CancellationToken cancellationToken)
     {
         var url = $"/_matrix/client/v3/rooms/{Uri.EscapeDataString(roomKey)}/read_markers";
 
-        var content = JsonContent.Create(new Dictionary<string, string>
-        {
-            { "m.fully_read", eventId },
-            { "m.read", eventId }
-        },
-        Json.AppDtoContext.Default.DictionaryStringString);
+        var content = JsonContent.Create(
+            new Dictionary<string, string>
+            {
+                { "m.fully_read", eventId },
+                { "m.read", eventId },
+            },
+            Json.AppDtoContext.Default.DictionaryStringString);
 
         await _httpService.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
     }
 
-    private static string? ParseUsername(string message)
+    private async ValueTask SendSuccessToRoomsAsync(
+        string roomKey,
+        string userName,
+        string password,
+        string sender,
+        CancellationToken cancellationToken)
     {
-        string? result = null;
-        var parts = message.Trim().Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        var newUserId = $"@{userName}:{Environment.GetEnvironmentVariable("MATRIX_HOMESERVER_URL")}";
+        await SendToRoomAsync(
+            roomKey,
+            new FormattedMessage(
+                $"Пользователь <a href=\"https://matrix.to/#/{newUserId}\">{newUserId}</a> успешно создан. Логин:",
+                $"Пользователь {userName} успешно создан. Логин:"),
+            cancellationToken).ConfigureAwait(false);
+        await SendToRoomAsync(roomKey, new Message(userName), cancellationToken).ConfigureAwait(false);
+        await SendToRoomAsync(roomKey, new Message("Пароль:"), cancellationToken).ConfigureAwait(false);
+        await SendToRoomAsync(roomKey, new Message(password), cancellationToken).ConfigureAwait(false);
 
-        if (parts.Length == 2
-            && RegistrationCommands.Contains(parts[0])
-            && userNameRules.IsMatch(parts[1]))
-        {
-            result = parts[1].Trim();
-        }
-
-        return result;
+        await SendToRoomAsync(
+            _registrationRoomKey,
+            new FormattedMessage(
+                $"<a href=\"https://matrix.to/#/{sender}\">{sender}</a> зарегистрировал <a href=\"https://matrix.to/#/{newUserId}\">{newUserId}</a>",
+                $"{sender} зарегистрировал {newUserId}"),
+            cancellationToken).ConfigureAwait(false);
     }
-
-    private static string CreatePassword()
-    {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+=<>?";
-        var random = new Random();
-        var passwordChars = Enumerable.Range(0, 16)
-            .Select(_ => chars[random.Next(chars.Length)])
-            .ToArray();
-        return new string(passwordChars);
-    }
-
-    [GeneratedRegex(@"[a-z0-9._-]{3,64}")]
-    private static partial Regex CreateUserNameRegex();
 }

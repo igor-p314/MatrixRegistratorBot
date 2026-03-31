@@ -1,13 +1,14 @@
-﻿using MatrixRegistratorBot;
-using Serilog;
+﻿using Serilog;
 using System.Threading;
 using System.Threading.Tasks;
 
-class Program
-{
-    private static readonly CancellationTokenSource cts = new();
+namespace MatrixRegistratorBot;
 
-    static async Task Main(string[] _)
+public class Program
+{
+    private static readonly CancellationTokenSource CancelTokenSource = new();
+
+    public static async Task Main()
     {
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
@@ -18,11 +19,11 @@ class Program
         try
         {
             var matrixService = new MatrixService();
-            await matrixService.StartAsync(cts.Token).ConfigureAwait(false);
+            await matrixService.StartAsync(CancelTokenSource.Token).ConfigureAwait(false);
         }
         finally
         {
-            cts.Dispose();
+            CancelTokenSource.Dispose();
         }
     }
 }

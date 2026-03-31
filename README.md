@@ -1,7 +1,9 @@
 # Matrix Registrator Bot
 
 Бот для регистрации пользователей в Matrix-сети через команды в чате.
-Это нужно, чтобы избежать регистрации и задействия электронной почты. Таким образом реализуется регистрация через сарафанное радио, когда пользователи приглашают своих друзей в комнаты, а бот регистрирует их в MAS и отправляет учётные данные.
+Это нужно, чтобы избежать при регистрации использования электронной почты. 
+Таким образом реализуется регистрация через "сарафанное радио", когда пользователи приглашают своих друзей в комнаты, а бот регистрирует их в MAS и отправляет учётные данные.
+Работает по максимально наивному сценарию, без дополнительных проверок.
 
 ## Описание
 
@@ -28,14 +30,14 @@
 
 | Переменная | Описание |
 |------------|----------|
+| `MATRIX_HOMESERVER_URL` | URL homeserver'а |
 | `MATRIX_BOT_USER_LOGIN` | Логин бота в Matrix |
 | `MATRIX_BOT_USER_PASSWORD` | Пароль бота в Matrix |
 | `MATRIX_BOT_BATCH_TOKEN_PATH` | Путь к файлу для сохранения токена синхронизации |
 | `MATRIX_BOT_MAX_MESSAGE_AGE_MS` | Максимальный возраст сообщений для обработки (мс, по умолчанию 14400000) |
-| `MATRIX_HOMESERVER_URL` | URL homeserver'а |
-| `MATRIX_ADMIN_LOGIN` | Логин администратора для MAS |
-| `MATRIX_ADMIN_PASSWORD` | Пароль администратора для MAS |
+| `MATRIX_BOT_USER_TIMEOUT` | Таймаут для longpolling запросов ожидания сообщений |
 | `MATRIX_ADMIN_URL` | URL Matrix Authentication Service |
+| `MATRIX_BOT_ADMIN_BASIC_AUTH` | Basic авторизация для доступа к админке |
 
 ## Использование
 
@@ -80,8 +82,8 @@ docker run -d \
   -e MATRIX_BOT_USER_PASSWORD=bot_password \
   -e MATRIX_BOT_BATCH_TOKEN_PATH=/data/token.txt \
   -e MATRIX_HOMESERVER_URL=matrix.example.com \
-  -e MATRIX_ADMIN_LOGIN=admin \
-  -e MATRIX_ADMIN_PASSWORD=admin_password \
+  -e MATRIX_BOT_USER_TIMEOUT=30000 \
+  -e MATRIX_BOT_ADMIN_BASIC_AUTH=admin_password \
   -e MATRIX_ADMIN_URL=https://auth.matrix.example.com \
   -v /path/to/data:/data \
   matrix-registrator-bot

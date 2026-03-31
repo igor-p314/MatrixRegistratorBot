@@ -4,10 +4,12 @@ using System.Text.Json.Serialization;
 
 namespace MatrixRegistratorBot.Json;
 
+/// <summary>
+/// Контекст Json-сериализации. Нужен для AOT.
+/// </summary>
 [JsonSourceGenerationOptions(
         PropertyNamingPolicy = JsonKnownNamingPolicy.SnakeCaseLower,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-)]
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(LoginResult))]
 [JsonSerializable(typeof(AdminToken))]
 [JsonSerializable(typeof(Dictionary<string, string>))]

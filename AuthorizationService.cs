@@ -12,8 +12,10 @@ namespace MatrixRegistratorBot;
 internal class AuthorizationService(HttpService httpService)
 {
     private readonly HttpService _httpService = httpService;
+
     private readonly string _login = Environment.GetEnvironmentVariable("MATRIX_BOT_USER_LOGIN")
             ?? throw new InvalidOperationException("Не задана переменная среды MATRIX_BOT_USER_LOGIN");
+
     private readonly string _password = Environment.GetEnvironmentVariable("MATRIX_BOT_USER_PASSWORD")
             ?? throw new InvalidOperationException("Не задана переменная среды MATRIX_BOT_USER_PASSWORD");
 

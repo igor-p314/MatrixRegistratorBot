@@ -13,5 +13,4 @@ public sealed record RoomEvent
     public required MessageContent Content { get; set; }
 
     public long? OriginServerTs { get; set; }
-
 }

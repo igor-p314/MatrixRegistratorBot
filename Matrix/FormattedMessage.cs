@@ -1,25 +1,24 @@
 ﻿using System.Collections.Generic;
 
-namespace MatrixRegistratorBot.Matrix
+namespace MatrixRegistratorBot.Matrix;
+
+internal sealed record FormattedMessage : Message
 {
-    internal sealed record FormattedMessage : Message
+    private string FormattedMessageText { get; }
+
+    public FormattedMessage(string formattedMessageText, string messageText) : base(messageText)
     {
-        private readonly string _formattedMessageText;
+        FormattedMessageText = formattedMessageText;
+    }
 
-        public FormattedMessage(string formattedMessageText, string messageText) : base(messageText)
+    public override Dictionary<string, string> ToSerializableMessage()
+    {
+        return new Dictionary<string, string>
         {
-            _formattedMessageText = formattedMessageText;
-        }
-
-        public override Dictionary<string, string> ToSerializableMessage()
-        {
-            return new Dictionary<string, string>
-            {
-                { "msgtype", "m.text" },
-                { "body", _messageText },
-                { "format", "org.matrix.custom.html" },
-                { "formatted_body", _formattedMessageText },
-            };
-        }
+            { "msgtype", "m.text" },
+            { "body", MessageText },
+            { "format", "org.matrix.custom.html" },
+            { "formatted_body", FormattedMessageText },
+        };
     }
 }

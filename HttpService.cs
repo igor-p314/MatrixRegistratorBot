@@ -52,8 +52,8 @@ internal class HttpService
             BaseAddress = new Uri($"https://{MasPrefix}.{homeServerUrl}"),
             DefaultRequestHeaders =
             {
-                { "Authorization", "Basic " + adminBasicToken }
-            }
+                { "Authorization", "Basic " + adminBasicToken },
+            },
         };
 
         _masHttpClient = new HttpClient()
@@ -84,7 +84,7 @@ internal class HttpService
                     bearer = await authorizationService.AuthorizeAsync(url, args.Context.CancellationToken).ConfigureAwait(false);
                     _matrixHttpClient.DefaultRequestHeaders.Clear();
                     _matrixHttpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {bearer}");
-                }
+                },
             }).Build();
 
         return authorizationService;
@@ -94,12 +94,13 @@ internal class HttpService
     {
         ArgumentNullException.ThrowIfNull(_resiliencePipeline, "MatrixService not initialized.");
 
-        var response = await _resiliencePipeline.ExecuteAsync(async token =>
-        {
-            var resp = await _matrixHttpClient.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
-            return resp;
-        },
-        cancellationToken).ConfigureAwait(false);
+        var response = await _resiliencePipeline.ExecuteAsync(
+            async token =>
+            {
+                var resp = await _matrixHttpClient.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
+                return resp;
+            },
+            cancellationToken).ConfigureAwait(false);
 
         return response;
     }
@@ -114,12 +115,13 @@ internal class HttpService
     {
         ArgumentNullException.ThrowIfNull(_resiliencePipeline, "MatrixService not initialized.");
 
-        var response = await _resiliencePipeline.ExecuteAsync(async token =>
-        {
-            var resp = await _matrixHttpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
-            return resp;
-        },
-        cancellationToken).ConfigureAwait(false);
+        var response = await _resiliencePipeline.ExecuteAsync(
+            async token =>
+            {
+                var resp = await _matrixHttpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+                return resp;
+            },
+            cancellationToken).ConfigureAwait(false);
 
         return response;
     }
@@ -153,8 +155,8 @@ internal class HttpService
         var jsonData = JsonContent.Create(
             new Dictionary<string, object>
             {
-                { "username", userName},
-                { "skip_homeserver_check", false},
+                { "username", userName },
+                { "skip_homeserver_check", false },
             },
             Json.AppDtoContext.Default.DictionaryStringObject);
 
@@ -180,8 +182,8 @@ internal class HttpService
     {
         var data = new Dictionary<string, object>
             {
-                { "password", password},
-                { "skip_password_check", false},
+                { "password", password },
+                { "skip_password_check", false },
             };
         var jsonData = JsonContent.Create(data, Json.AppDtoContext.Default.DictionaryStringObject);
 

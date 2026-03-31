@@ -4,11 +4,11 @@ namespace MatrixRegistratorBot.Matrix;
 
 internal record Message
 {
-    protected readonly string _messageText;
+    public string MessageText { get; }
 
     public Message(string messageText)
     {
-        _messageText = messageText;
+        MessageText = messageText;
     }
 
     public virtual Dictionary<string, string> ToSerializableMessage()
@@ -16,7 +16,7 @@ internal record Message
         return new Dictionary<string, string>
         {
             { "msgtype", "m.text" },
-            { "body", _messageText },
+            { "body", MessageText },
         };
     }
 }

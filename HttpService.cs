@@ -111,7 +111,7 @@ internal class HttpService
         return response;
     }
 
-    internal async ValueTask<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken = default)
+    internal async ValueTask<HttpResponseMessage> GetAsync(string url, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(_resiliencePipeline, "MatrixService not initialized.");
 
@@ -122,6 +122,8 @@ internal class HttpService
                 return resp;
             },
             cancellationToken).ConfigureAwait(false);
+
+        _ = Task.Run(() => HealthService.HeartBeatAsync(cancellationToken));
 
         return response;
     }

@@ -30,14 +30,14 @@
 
 | Переменная | Описание |
 |------------|----------|
-| `MATRIX_HOMESERVER_URL` | URL homeserver'а |
+| `MATRIX_HOMESERVER_URL` | URL homeserver'а (домен) |
 | `MATRIX_BOT_USER_LOGIN` | Логин бота в Matrix |
 | `MATRIX_BOT_USER_PASSWORD` | Пароль бота в Matrix |
 | `MATRIX_BOT_BATCH_TOKEN_PATH` | Путь к файлу для сохранения токена синхронизации |
 | `MATRIX_BOT_MAX_MESSAGE_AGE_MS` | Максимальный возраст сообщений для обработки (мс, по умолчанию 14400000) |
-| `MATRIX_BOT_USER_TIMEOUT` | Таймаут для longpolling запросов ожидания сообщений |
-| `MATRIX_ADMIN_URL` | URL Matrix Authentication Service |
-| `MATRIX_BOT_ADMIN_BASIC_AUTH` | Basic авторизация для доступа к админке |
+| `MATRIX_BOT_USER_TIMEOUT` | Таймаут для longpolling запросов ожидания сообщений (мс, по умолчанию 30000) |
+| `MATRIX_BOT_ADMIN_BASIC_AUTH` | Basic авторизация для доступа к админке MAS |
+| `MATRIX_REGISTRATION_ROOM_KEY` | Ключ комнаты для уведомлений о регистрациях |
 
 ## Использование
 
@@ -84,7 +84,7 @@ docker run -d \
   -e MATRIX_HOMESERVER_URL=matrix.example.com \
   -e MATRIX_BOT_USER_TIMEOUT=30000 \
   -e MATRIX_BOT_ADMIN_BASIC_AUTH=admin_password \
-  -e MATRIX_ADMIN_URL=https://auth.matrix.example.com \
+  -e MATRIX_REGISTRATION_ROOM_KEY="!room:matrix.example.com" \
   -v /path/to/data:/data \
   matrix-registrator-bot
 ```

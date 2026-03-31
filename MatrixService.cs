@@ -171,7 +171,7 @@ internal partial class MatrixService
             var membersCount = invite.Value.InviteState.Events.Count(e => e.Type == "m.room.member");
             var roomName = invite.Value.InviteState.Events.FirstOrDefault(e => e.Type == "m.room.name")?.Content?.Name ?? "Unknown";
             var isEncrypted = invite.Value.InviteState.Events.Any(e => e.Type == "m.room.encryption");
-            if (membersCount == MaxAllowedUsersInRoom && !isEncrypted) // only direct
+            if (membersCount == MaxAllowedUsersInRoom && !isEncrypted)
             {
                 Task.Run(() => JoinDirectRoomAsync(invite.Key, cancellationToken));
             }
@@ -215,7 +215,7 @@ internal partial class MatrixService
         var content = JsonContent.Create(message.ToSerializableMessage(), Json.AppDtoContext.Default.DictionaryStringString);
         var response = await _httpService.PostAsync(leaveUrl, content, cancellationToken).ConfigureAwait(false);
 
-        Log.Information("Ответ отправлен в комнату {roomKey}: '{message}' {statusCode}", roomKey, message, response.StatusCode);
+        Log.Information("Ответ отправлен в комнату {roomKey}: '{message}' {statusCode}", roomKey, message.MessageText, response.StatusCode);
     }
 
     private async ValueTask ProcessRegistrationCommandAsync(string roomKey, string message, string sender, CancellationToken cancellationToken)

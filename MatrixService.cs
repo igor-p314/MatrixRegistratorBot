@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http.Json;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -78,6 +79,11 @@ internal partial class MatrixService
     [GeneratedRegex(@"[a-z0-9._-]{3,64}")]
     private static partial Regex CreateUserNameRegex();
 
+    private static string GetMatrixServerName(string matrixUserId)
+    {
+        return matrixUserId.Split(':').LastOrDefault() ?? throw new InvalidOperationException($"{matrixUserId} - неверный идентификатор пользователя.");
+    }
+
     private async ValueTask ConnectToServerAsync(AuthorizationService authorizationService, CancellationToken cancellationToken)
     {
         string? batchFromFile = await _tokenService.GetAsync(cancellationToken).ConfigureAwait(false);
@@ -138,13 +144,20 @@ internal partial class MatrixService
 
                 foreach (var (roomKey, text, sender) in messages)
                 {
-                    if (RegistrationCommands.Any(text.StartsWith))
+                    if (_httpService.HomeServerUrl.Equals(GetMatrixServerName(sender), StringComparison.OrdinalIgnoreCase))
                     {
-                        await ProcessRegistrationCommandAsync(roomKey, text, sender, cancellationToken).ConfigureAwait(false);
+                        if (RegistrationCommands.Any(text.StartsWith))
+                        {
+                            await ProcessRegistrationCommandAsync(roomKey, text, sender, cancellationToken).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            await RespondWrongCommandAsync(roomKey, cancellationToken).ConfigureAwait(false);
+                        }
                     }
                     else
                     {
-                        await RespondWrongCommandAsync(roomKey, cancellationToken).ConfigureAwait(false);
+                        await LeaveRoomAsync(roomKey, cancellationToken).ConfigureAwait(false);
                     }
                 }
 
@@ -171,7 +184,10 @@ internal partial class MatrixService
             var membersCount = invite.Value.InviteState.Events.Count(e => e.Type == "m.room.member");
             var roomName = invite.Value.InviteState.Events.FirstOrDefault(e => e.Type == "m.room.name")?.Content?.Name ?? "Unknown";
             var isEncrypted = invite.Value.InviteState.Events.Any(e => e.Type == "m.room.encryption");
-            if (membersCount == MaxAllowedUsersInRoom && !isEncrypted)
+            var sender = invite.Value.InviteState.Events.FirstOrDefault(e => e.Content?.Membership == "invite")?.Sender ?? string.Empty;
+            if (membersCount == MaxAllowedUsersInRoom
+                && !isEncrypted
+                && _httpService.HomeServerUrl.Equals(GetMatrixServerName(sender), StringComparison.OrdinalIgnoreCase))
             {
                 Task.Run(() => JoinDirectRoomAsync(invite.Key, cancellationToken));
             }
